@@ -1,6 +1,7 @@
 <img width="394" height="349" alt="image" src="https://github.com/user-attachments/assets/9219f407-ded3-4903-8a99-9a0858ceee75" />
 
-email me at jeff@modeltstarters.com for a testflight invite
+testflight download link to all iOS versions
+https://testflight.apple.com/join/sMdGrPm1
 
 ### iPhone
 
