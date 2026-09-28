@@ -14,6 +14,7 @@
 		B10000000000000000000006 /* SecondaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000006 /* SecondaryViews.swift */; };
 		B10000000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000007 /* Assets.xcassets */; };
 		B10000000000000000000009 /* DeviceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000009 /* DeviceScreens.swift */; };
+		B1000000000000000000000A /* AdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000A /* AdaptiveLayout.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		E10000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E10000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E10000000000000000000009 /* DeviceScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceScreens.swift; sourceTree = "<group>"; };
+		E1000000000000000000000A /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +58,7 @@
 				E10000000000000000000005 /* OverviewView.swift */,
 				E10000000000000000000006 /* SecondaryViews.swift */,
 				E10000000000000000000009 /* DeviceScreens.swift */,
+				E1000000000000000000000A /* AdaptiveLayout.swift */,
 				E10000000000000000000007 /* Assets.xcassets */,
 				E10000000000000000000008 /* Info.plist */,
 			);
@@ -144,6 +147,7 @@
 				B10000000000000000000005 /* OverviewView.swift in Sources */,
 				B10000000000000000000006 /* SecondaryViews.swift in Sources */,
 				B10000000000000000000009 /* DeviceScreens.swift in Sources */,
+				B1000000000000000000000A /* AdaptiveLayout.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -181,7 +185,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -216,7 +220,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

@@ -3,28 +3,34 @@ import UIKit
 
 struct RootView: View {
     @Bindable var model: AppModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var usesPadLayout: Bool {
+        AdaptiveLayout.usesPadConsole(horizontalSizeClass)
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 0) {
-                header
-                Group {
-                    switch model.tab {
-                    case .brief:
-                        BriefView(model: model)
-                    case .overview:
-                        OverviewView(model: model)
-                    case .levels:
-                        LevelsView(model: model)
-                    case .notifications:
-                        NotificationsView(model: model)
-                    case .settings:
-                        SettingsView(model: model)
+            if usesPadLayout {
+                HStack(spacing: 0) {
+                    padSidebar
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 1)
+                    VStack(spacing: 0) {
+                        header
+                        tabContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                tabBar
+            } else {
+                VStack(spacing: 0) {
+                    header
+                    tabContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    tabBar
+                }
             }
         }
         .onAppear { model.start() }
@@ -48,26 +54,78 @@ struct RootView: View {
         }
     }
 
+    @ViewBuilder
+    private var tabContent: some View {
+        Group {
+            switch model.tab {
+            case .brief:
+                BriefView(model: model)
+            case .overview:
+                OverviewView(model: model)
+            case .levels:
+                LevelsView(model: model)
+            case .notifications:
+                NotificationsView(model: model)
+            case .settings:
+                SettingsView(model: model)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, usesPadLayout ? 16 : 0)
+    }
+
+    private var padSidebar: some View {
+        VStack(spacing: 6) {
+            ForEach(ConsoleTab.allCases) { tab in
+                Button {
+                    model.tab = tab
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: tab.symbol)
+                            .font(.system(size: 22, weight: .semibold))
+                        Text(tab.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(model.tab == tab ? Theme.tabOn : Theme.tabOff)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        model.tab == tab ? Color.white.opacity(0.08) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 16)
+        .frame(width: AdaptiveLayout.padSidebarWidth)
+        .background(Color(white: 0.07))
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             Circle()
                 .fill(dotColor)
-                .frame(width: 8, height: 8)
+                .frame(width: usesPadLayout ? 10 : 8, height: usesPadLayout ? 10 : 8)
             Text("Remote console")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: usesPadLayout ? 22 : 17, weight: .semibold))
                 .foregroundStyle(.white)
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 6)
-        .padding(.bottom, 10)
+        .padding(.horizontal, usesPadLayout ? 24 : 16)
+        .padding(.top, usesPadLayout ? 12 : 6)
+        .padding(.bottom, usesPadLayout ? 14 : 10)
     }
 
     private var dotColor: Color {
         switch model.link {
         case .connected: return Color(red: 0.35, green: 0.82, blue: 0.45)
         case .connecting: return Color(red: 0.95, green: 0.78, blue: 0.25)
-        case .failed: return Color(red: 0.95, green: 0.45, blue: 0.30)
+        case .failed: return Theme.brightRed
         case .disconnected: return Color(white: 0.45)
         }
     }
@@ -116,6 +174,7 @@ struct BriefView: View {
                         Spacer()
                         Text(MetricFormat.watts(model.snapshot.solarWatts))
                             .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(Theme.signColor(model.snapshot.solarWatts))
                             .monospacedDigit()
                     }
                 }
@@ -140,21 +199,27 @@ struct BriefView: View {
                         Text(DetailText.timeToGo(model.snapshot.batteryTimeToGo))
                             .font(.system(size: 16, weight: .medium))
                             .monospacedDigit()
-                        Text("\(MetricFormat.voltsText(model.snapshot.batteryVolts))   \(MetricFormat.ampsText(model.snapshot.batteryAmps))   \(MetricFormat.wattsText(model.snapshot.batteryWatts))")
-                            .font(.system(size: 15, weight: .medium))
-                            .monospacedDigit()
+                        HStack(spacing: 8) {
+                            Text(MetricFormat.voltsText(model.snapshot.batteryVolts))
+                            Text(MetricFormat.ampsText(model.snapshot.batteryAmps))
+                                .foregroundStyle(Theme.signColor(model.snapshot.batteryAmps))
+                            Text(MetricFormat.wattsText(model.snapshot.batteryWatts))
+                                .foregroundStyle(Theme.signColor(model.snapshot.batteryWatts))
+                        }
+                        .font(.system(size: 15, weight: .medium))
+                        .monospacedDigit()
                     }
                 }
                 .onTapGesture { model.devicePage = .shunt }
 
                 HStack(spacing: 12) {
-                    metricBlock(title: "Grid", value: MetricFormat.amps(model.snapshot.gridAmps), symbol: "powerplug")
+                    metricBlock(title: "Grid", value: MetricFormat.amps(model.snapshot.gridAmps), sign: model.snapshot.gridAmps, symbol: "powerplug")
                     metricBlock(title: "Inverter", value: model.snapshot.inverterState, symbol: "arrow.left.arrow.right.square")
                         .onTapGesture { model.devicePage = .inverter }
                 }
                 HStack(spacing: 12) {
-                    metricBlock(title: "AC Loads", value: MetricFormat.amps(model.snapshot.acLoadAmps), symbol: "arrow.triangle.2.circlepath")
-                    metricBlock(title: "DC Loads", value: MetricFormat.amps(model.snapshot.dcLoadAmps), symbol: "circle.grid.cross")
+                    metricBlock(title: "AC Loads", value: MetricFormat.acLoadAmps(model.snapshot.acLoadAmps), sign: MetricFormat.acLoadValue(model.snapshot.acLoadAmps), symbol: "arrow.triangle.2.circlepath")
+                    metricBlock(title: "DC Loads", value: MetricFormat.amps(model.snapshot.dcLoadAmps), sign: model.snapshot.dcLoadAmps, symbol: "circle.grid.cross")
                 }
             }
             .padding(16)
@@ -181,7 +246,7 @@ struct BriefView: View {
             }
     }
 
-    private func metricBlock(title: String, value: String, symbol: String) -> some View {
+    private func metricBlock(title: String, value: String, sign: Double? = nil, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: symbol)
@@ -190,6 +255,7 @@ struct BriefView: View {
             .font(.system(size: 14, weight: .semibold))
             Text(value)
                 .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(Theme.signColor(sign))
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
                 .monospacedDigit()
@@ -212,31 +278,31 @@ struct LevelsView: View {
         ScrollView {
             VStack(spacing: 18) {
                 section("Battery", rows: [
-                    ("State of charge", MetricFormat.percent(model.snapshot.batterySOC)),
-                    ("State", model.snapshot.batteryState.title),
-                    ("Voltage", MetricFormat.voltsText(model.snapshot.batteryVolts)),
-                    ("Current", MetricFormat.ampsText(model.snapshot.batteryAmps)),
-                    ("Power", MetricFormat.wattsText(model.snapshot.batteryWatts)),
-                    ("Time-to-go", DetailText.timeToGo(model.snapshot.batteryTimeToGo))
+                    ("State of charge", MetricFormat.percent(model.snapshot.batterySOC), nil),
+                    ("State", model.snapshot.batteryState.title, nil),
+                    ("Voltage", MetricFormat.voltsText(model.snapshot.batteryVolts), nil),
+                    ("Current", MetricFormat.ampsText(model.snapshot.batteryAmps), model.snapshot.batteryAmps),
+                    ("Power", MetricFormat.wattsText(model.snapshot.batteryWatts), model.snapshot.batteryWatts),
+                    ("Time-to-go", DetailText.timeToGo(model.snapshot.batteryTimeToGo), nil)
                 ])
                 section("Solar", rows: [
-                    ("PV power", MetricFormat.wattsText(model.snapshot.solarWatts))
+                    ("PV power", MetricFormat.wattsText(model.snapshot.solarWatts), model.snapshot.solarWatts)
                 ])
                 section("AC", rows: [
-                    ("Grid current", MetricFormat.ampsText(model.snapshot.gridAmps)),
-                    ("AC load current", MetricFormat.ampsText(model.snapshot.acLoadAmps)),
-                    ("Inverter / charger", model.snapshot.inverterState)
+                    ("Grid current", MetricFormat.ampsText(model.snapshot.gridAmps), model.snapshot.gridAmps),
+                    ("AC load current", MetricFormat.acLoadAmpsText(model.snapshot.acLoadAmps), MetricFormat.acLoadValue(model.snapshot.acLoadAmps)),
+                    ("Inverter / charger", model.snapshot.inverterState, nil)
                 ])
                 section("DC", rows: [
-                    ("DC load current", MetricFormat.ampsText(model.snapshot.dcLoadAmps)),
-                    ("DC system power", MetricFormat.wattsText(model.snapshot.dcSystemPower))
+                    ("DC load current", MetricFormat.ampsText(model.snapshot.dcLoadAmps), model.snapshot.dcLoadAmps),
+                    ("DC system power", MetricFormat.wattsText(model.snapshot.dcSystemPower), model.snapshot.dcSystemPower)
                 ])
             }
             .padding(16)
         }
     }
 
-    private func section(_ title: String, rows: [(String, String)]) -> some View {
+    private func section(_ title: String, rows: [(String, String, Double?)]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
@@ -250,7 +316,7 @@ struct LevelsView: View {
                         Spacer()
                         Text(row.1)
                             .monospacedDigit()
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(row.2.map { Theme.signColor($0) } ?? Color.white.opacity(0.85))
                     }
                     .font(.system(size: 16))
                     .foregroundStyle(.white)
@@ -290,7 +356,7 @@ struct NotificationsView: View {
                         ForEach(model.alarms) { alarm in
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: alarm.level == "Alarm" ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill")
-                                    .foregroundStyle(alarm.level == "Alarm" ? Color.orange : Color.yellow)
+                                    .foregroundStyle(alarm.level == "Alarm" ? Theme.brightRed : Color.yellow)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(alarm.title)
                                         .font(.system(size: 16, weight: .semibold))

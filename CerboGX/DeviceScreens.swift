@@ -132,9 +132,26 @@ struct DeviceBrowserView: View {
         .foregroundStyle(.white)
     }
 
+    private var shuntBatterySummary: some View {
+        HStack(spacing: 6) {
+            Text(DetailText.volts(model.shunt.voltage))
+            Text("|")
+            Text(DetailText.signedAmps(model.shunt.current))
+                .foregroundStyle(Theme.signColor(model.shunt.current))
+            Text("|")
+            Text(DetailText.signedWatts(model.shunt.power))
+                .foregroundStyle(Theme.signColor(model.shunt.power))
+        }
+        .font(.system(size: 15))
+        .foregroundStyle(.white.opacity(0.78))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.55)
+    }
+
     @ViewBuilder
     private var shuntRows: some View {
-        DeviceRow(title: "Battery", value: model.shunt.summary)
+        DeviceRow(title: "Battery", accessory: { shuntBatterySummary })
         DeviceRow(title: "State of charge", value: DetailText.percent(model.shunt.soc))
         DeviceRow(title: "Starter voltage", value: DetailText.volts(model.shunt.starterVoltage))
         DeviceRow(title: "Consumed AmpHours", value: DetailText.ampHours(model.shunt.consumedAh))
@@ -164,7 +181,7 @@ struct DeviceBrowserView: View {
             outlineButton(model.inverter.limitButtonText) { showLimit = true }
         }
         DeviceRow(title: "DC Voltage", value: DetailText.volts(model.inverter.dcVoltage))
-        DeviceRow(title: "DC Current", value: DetailText.signedAmps(model.inverter.dcCurrent))
+        DeviceRow(title: "DC Current", value: DetailText.signedAmps(model.inverter.dcCurrent), valueSign: model.inverter.dcCurrent)
         DeviceRow(title: "State of charge", value: DetailText.percent(model.inverter.vebusSOC))
         DeviceRow(title: "Active AC Input", value: model.inverter.activeInputTitle)
         DeviceRow(
@@ -245,7 +262,7 @@ struct DeviceSectionPage: View {
             DeviceRow(title: "Product", value: model.inverter.productName.isEmpty ? "—" : model.inverter.productName)
             DeviceRow(title: "Serial number", value: model.inverter.serial ?? "—")
             DeviceRow(title: "Firmware", value: DetailText.firmware(model.inverter.firmware))
-            DeviceRow(title: "DC power", value: DetailText.signedWatts(model.inverter.dcPower))
+            DeviceRow(title: "DC power", value: DetailText.signedWatts(model.inverter.dcPower), valueSign: model.inverter.dcPower)
             DeviceRow(title: "AC inputs", value: "\(model.inverter.inputCount)")
             DeviceRow(title: "Active input", value: model.inverter.inputTitle)
         case .inverterAlarmStatus:
@@ -313,12 +330,14 @@ struct DeviceSectionPage: View {
 struct DeviceRow<Accessory: View>: View {
     var title: String
     var value: String?
+    var valueSign: Double?
     var chevron: Bool
     @ViewBuilder var accessory: () -> Accessory
 
-    init(title: String, value: String? = nil, chevron: Bool = false, @ViewBuilder accessory: @escaping () -> Accessory) {
+    init(title: String, value: String? = nil, valueSign: Double? = nil, chevron: Bool = false, @ViewBuilder accessory: @escaping () -> Accessory) {
         self.title = title
         self.value = value
+        self.valueSign = valueSign
         self.chevron = chevron
         self.accessory = accessory
     }
@@ -332,7 +351,7 @@ struct DeviceRow<Accessory: View>: View {
             if let value {
                 Text(value)
                     .font(.system(size: 15))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(valueSign.map { Theme.signColor($0) } ?? Color.white.opacity(0.78))
                     .multilineTextAlignment(.trailing)
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
@@ -351,8 +370,8 @@ struct DeviceRow<Accessory: View>: View {
 }
 
 extension DeviceRow where Accessory == EmptyView {
-    init(title: String, value: String? = nil, chevron: Bool = false) {
-        self.init(title: title, value: value, chevron: chevron) { EmptyView() }
+    init(title: String, value: String? = nil, valueSign: Double? = nil, chevron: Bool = false) {
+        self.init(title: title, value: value, valueSign: valueSign, chevron: chevron) { EmptyView() }
     }
 }
 
@@ -369,7 +388,7 @@ enum DetailText {
 
     static func signedWatts(_ value: Double?) -> String {
         guard let value else { return "—" }
-        return "\(Int(value.rounded())) W"
+        return "\(Int(value.rounded())) w"
     }
 
     static func percent(_ value: Double?) -> String {
@@ -424,7 +443,7 @@ enum DetailText {
     }
 
     static func ac(power: Double?, volts: Double?, amps: Double?, hz: Double?) -> String {
-        let watts = power.map { "\(Int($0.rounded())) W" } ?? "—"
+        let watts = power.map { "\(Int($0.rounded())) w" } ?? "—"
         let voltage = volts.map { "\(Int($0.rounded())) V" } ?? "—"
         let current = amps.map { String(format: "%.1f A", $0) } ?? "—"
         let frequency = hz.map { String(format: "%.1f Hz", $0) } ?? "—"

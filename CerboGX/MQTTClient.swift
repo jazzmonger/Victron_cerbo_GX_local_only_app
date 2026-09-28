@@ -310,8 +310,21 @@ final class MQTTClient: @unchecked Sendable {
         connection?.send(content: packet, completion: .contentProcessed { _ in })
     }
 
+    /// One ID per app install so iPhone and iPad can stay connected at the same time.
+    private static let clientIDKey = "cerbo.mqttClientId"
+
+    private static func clientID() -> Data {
+        if let saved = UserDefaults.standard.string(forKey: clientIDKey), !saved.isEmpty {
+            return Data(saved.utf8)
+        }
+        let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(10)
+        let id = "cerbogx-\(suffix)"
+        UserDefaults.standard.set(id, forKey: clientIDKey)
+        return Data(id.utf8)
+    }
+
     private func connectPacket(_ config: Configuration) -> Data {
-        let clientID = Data("cerbogx-ios".utf8)
+        let clientID = Self.clientID()
         var flags: UInt8 = 0x02
         let user = Data(config.username.utf8)
         let pass = Data(config.password.utf8)

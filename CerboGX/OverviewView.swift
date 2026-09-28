@@ -11,6 +11,15 @@ enum Theme {
     static let tabOn = Color(red: 0.35, green: 0.66, blue: 0.98)
     static let tabOff = Color(white: 0.56)
     static let label = Color.white.opacity(0.92)
+    static let charge = Color(red: 0.98, green: 0.82, blue: 0.22)
+    /// Bright red for discharge and emphasis (battery tile stats, negative amps/watts).
+    static let brightRed = Color(red: 1.0, green: 0.12, blue: 0.08)
+    static let discharge = brightRed
+
+    static func signColor(_ value: Double?) -> Color {
+        guard let value, value > 0 else { return .white }
+        return charge
+    }
 
     static var batteryGradient: LinearGradient {
         LinearGradient(colors: [batteryTop, batteryBottom], startPoint: .top, endPoint: .bottom)
@@ -19,50 +28,96 @@ enum Theme {
 
 struct OverviewView: View {
     @Bindable var model: AppModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var usesPadLayout: Bool {
+        AdaptiveLayout.usesPadConsole(horizontalSizeClass)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Overview")
-                    .font(.system(size: 28, weight: .regular))
+                    .font(.system(size: usesPadLayout ? 34 : 28, weight: .regular))
                     .foregroundStyle(.white)
                 Spacer()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, usesPadLayout ? 0 : 16)
             .padding(.bottom, 8)
 
             if !model.isLive {
                 statusBanner
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, usesPadLayout ? 0 : 16)
                     .padding(.bottom, 8)
             }
 
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    gridTile
-                    solarTile
-                }
-                .frame(maxHeight: .infinity)
-
-                boltRow
-
-                HStack(spacing: 12) {
-                    inverterTile
-                    batteryTile
-                }
-                .frame(maxHeight: .infinity)
-
-                boltRow
-
-                HStack(spacing: 12) {
-                    loadTile(title: "AC Loads", systemImage: "arrow.triangle.2.circlepath", amps: model.snapshot.acLoadAmps)
-                    loadTile(title: "DC Loads", systemImage: "circle.grid.cross", amps: model.snapshot.dcLoadAmps)
-                }
-                .frame(maxHeight: .infinity)
+            if usesPadLayout {
+                padTileGrid
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                phoneTileStack
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var phoneTileStack: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                gridTile
+                solarTile
+            }
+            .frame(maxHeight: .infinity)
+            .layoutPriority(1)
+
+            boltRow
+
+            HStack(spacing: 12) {
+                inverterTile
+                batteryTile
+            }
+            .frame(maxHeight: .infinity)
+            .layoutPriority(1.14)
+
+            boltRow
+
+            HStack(spacing: 12) {
+                loadTile(title: "AC Loads", systemImage: "arrow.triangle.2.circlepath", amps: MetricFormat.acLoadValue(model.snapshot.acLoadAmps))
+                loadTile(title: "DC Loads", systemImage: "circle.grid.cross", amps: model.snapshot.dcLoadAmps, plusWhenPositive: true)
+            }
+            .frame(maxHeight: .infinity)
+            .layoutPriority(1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    private var padTileGrid: some View {
+        GeometryReader { geo in
+            let spacing: CGFloat = 16
+            let rowHeight = max(200, (geo.size.height - spacing) / 2)
+            let columns = Array(repeating: GridItem(.flexible(), spacing: spacing), count: 3)
+            LazyVGrid(columns: columns, spacing: spacing) {
+                padTileCell(gridTile, height: rowHeight)
+                padTileCell(solarTile, height: rowHeight)
+                padTileCell(inverterTile, height: rowHeight)
+                padTileCell(batteryTile, height: rowHeight)
+                padTileCell(
+                    loadTile(title: "AC Loads", systemImage: "arrow.triangle.2.circlepath", amps: MetricFormat.acLoadValue(model.snapshot.acLoadAmps)),
+                    height: rowHeight
+                )
+                padTileCell(
+                    loadTile(title: "DC Loads", systemImage: "circle.grid.cross", amps: model.snapshot.dcLoadAmps, plusWhenPositive: true),
+                    height: rowHeight
+                )
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+        }
+    }
+
+    private func padTileCell<Content: View>(_ content: Content, height: CGFloat) -> some View {
+        content
+            .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
     }
 
     private var statusBanner: some View {
@@ -90,10 +145,19 @@ struct OverviewView: View {
         Tile {
             VStack(alignment: .leading, spacing: 2) {
                 LabelRow(title: "Grid") { GridGlyph() }
-                Text(MetricFormat.amps(model.snapshot.gridAmps))
-                    .font(TileFont.value)
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
+                Group {
+                    if model.snapshot.gridAmps == nil {
+                        Text(MetricFormat.gridTile(model.snapshot.gridAmps))
+                            .font(.system(size: usesPadLayout ? 28 : 22, weight: .semibold))
+                    } else {
+                        Text(MetricFormat.gridTile(model.snapshot.gridAmps))
+                            .font(TileFont.value(pad: usesPadLayout))
+                            .monospacedDigit()
+                    }
+                }
+                .foregroundStyle(Theme.signColor(model.snapshot.gridAmps))
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
             }
         }
@@ -113,23 +177,25 @@ struct OverviewView: View {
                             .font(.system(size: 15, weight: .semibold))
                     }
                     Text(MetricFormat.watts(solarPower))
-                        .font(TileFont.value)
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                    Text(MetricFormat.yield(model.snapshot.solarYieldKWh))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .font(TileFont.value(pad: usesPadLayout))
+                        .foregroundStyle(Theme.signColor(solarPower))
                         .monospacedDigit()
                     Text("\(MetricFormat.pvVolts(model.snapshot.solarPvVolts))   \(MetricFormat.pvCurrent(watts: solarPower, volts: model.snapshot.solarPvVolts))")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.white.opacity(0.92))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                    Text("Battery  \(MetricFormat.pvVolts(model.snapshot.solarBatteryVolts))  |  \(solarBatteryAmps)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.75))
-                        .monospacedDigit()
+                    HStack(spacing: 4) {
+                        Text("Battery")
+                        Text(MetricFormat.pvVolts(model.snapshot.solarBatteryVolts))
+                        Text("|")
+                        Text(solarBatteryAmps)
+                            .foregroundStyle(Theme.signColor(model.snapshot.solarBatteryAmps))
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Spacer(minLength: 4)
@@ -146,8 +212,7 @@ struct OverviewView: View {
     }
 
     private var solarBatteryAmps: String {
-        guard let amps = model.snapshot.solarBatteryAmps else { return "— A" }
-        return String(format: "%.1f A", amps)
+        MetricFormat.ampsText(model.snapshot.solarBatteryAmps, plusWhenPositive: true)
     }
 
     private var inverterTile: some View {
@@ -197,7 +262,7 @@ struct OverviewView: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
                 Text(MetricFormat.percent(model.snapshot.batterySOC))
-                    .font(TileFont.value)
+                    .font(TileFont.value(pad: usesPadLayout))
                     .foregroundStyle(.white)
                     .monospacedDigit()
                     .padding(.top, 2)
@@ -209,33 +274,33 @@ struct OverviewView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.white)
                     .monospacedDigit()
-                Spacer(minLength: 8)
-                HStack(spacing: 0) {
+                Spacer(minLength: 4)
+                VStack(alignment: .leading, spacing: 3) {
                     Text(MetricFormat.voltsText(model.snapshot.batteryVolts))
-                    Spacer(minLength: 4)
-                    Text(MetricFormat.ampsText(model.snapshot.batteryAmps))
-                    Spacer(minLength: 4)
-                    Text(MetricFormat.wattsText(model.snapshot.batteryWatts))
+                        .foregroundStyle(.white)
+                    Text(MetricFormat.ampsText(model.snapshot.batteryAmps, plusWhenPositive: true))
+                        .foregroundStyle(Theme.signColor(model.snapshot.batteryAmps))
+                    Text(MetricFormat.wattsText(model.snapshot.batteryWatts, plusWhenPositive: true))
+                        .foregroundStyle(Theme.signColor(model.snapshot.batteryWatts))
                 }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+                .font(.system(size: 34, weight: .semibold))
                 .monospacedDigit()
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.45)
             }
         }
     }
 
-    private func loadTile(title: String, systemImage: String, amps: Double?) -> some View {
+    private func loadTile(title: String, systemImage: String, amps: Double?, plusWhenPositive: Bool = false) -> some View {
         Tile {
             VStack(alignment: .leading, spacing: 2) {
                 LabelRow(title: title) {
                     Image(systemName: systemImage)
                         .font(.system(size: 14, weight: .semibold))
                 }
-                Text(MetricFormat.amps(amps))
-                    .font(TileFont.value)
-                    .foregroundStyle(.white)
+                Text(MetricFormat.amps(amps, plusWhenPositive: plusWhenPositive))
+                    .font(TileFont.value(pad: usesPadLayout))
+                    .foregroundStyle(Theme.signColor(amps))
                     .monospacedDigit()
                 Spacer(minLength: 0)
             }
@@ -264,7 +329,9 @@ struct OverviewView: View {
 }
 
 private enum TileFont {
-    static let value = Font.system(size: 36, weight: .regular)
+    static func value(pad: Bool) -> Font {
+        .system(size: pad ? 44 : 36, weight: .regular)
+    }
 }
 
 struct Tile<Content: View>: View {
@@ -341,6 +408,17 @@ struct SolarHistoryView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
+    private enum FontScale {
+        static let title = 25.5
+        static let headline = 42.0
+        static let body = 25.5
+        static let detail = 22.5
+        static let section = 22.5
+        static let chartAxis = 18.0
+        static let navIcon = 24.0
+        static let closeIcon = 21.0
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -348,21 +426,22 @@ struct SolarHistoryView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 42, height: 34)
+                        .font(.system(size: FontScale.navIcon, weight: .semibold))
+                        .frame(width: 63, height: 51)
                         .background(Color(red: 0.10, green: 0.18, blue: 0.30), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 Text(model.snapshot.solarName)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: FontScale.title, weight: .semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Spacer()
                 Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .frame(width: 32, height: 32)
+                        .font(.system(size: FontScale.closeIcon, weight: .bold))
+                        .frame(width: 48, height: 48)
                         .background(Color.white.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
@@ -372,41 +451,58 @@ struct SolarHistoryView: View {
             .padding(.top, 8)
             .padding(.bottom, 16)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text(MetricFormat.mpptState(model.snapshot.solarState))
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: FontScale.headline, weight: .semibold))
                 Text("Today  \(MetricFormat.yield(model.snapshot.solarYieldKWh))")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: FontScale.body, weight: .medium))
                     .monospacedDigit()
-                Text("\(MetricFormat.pvVolts(model.snapshot.solarPvVolts))    \(MetricFormat.pvCurrent(watts: model.snapshot.solarPvWatts ?? model.snapshot.solarWatts, volts: model.snapshot.solarPvVolts))    \(MetricFormat.wattsText(model.snapshot.solarPvWatts ?? model.snapshot.solarWatts))")
-                    .font(.system(size: 15, weight: .medium))
-                    .monospacedDigit()
-                Text("Battery   \(MetricFormat.pvVolts(model.snapshot.solarBatteryVolts))  |  \(batteryAmps)")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .monospacedDigit()
+                HStack(spacing: 12) {
+                    Text(MetricFormat.pvVolts(model.snapshot.solarPvVolts))
+                    Text(MetricFormat.pvCurrent(watts: solarHistoryPower, volts: model.snapshot.solarPvVolts))
+                    Text(MetricFormat.wattsText(solarHistoryPower))
+                        .foregroundStyle(Theme.signColor(solarHistoryPower))
+                }
+                .font(.system(size: FontScale.detail, weight: .medium))
+                .monospacedDigit()
+                HStack(spacing: 10) {
+                    Text("Battery")
+                    Text(MetricFormat.pvVolts(model.snapshot.solarBatteryVolts))
+                    Text("|")
+                    Text(batteryAmps)
+                        .foregroundStyle(Theme.signColor(model.snapshot.solarBatteryAmps))
+                }
+                .font(.system(size: FontScale.detail, weight: .medium))
+                .foregroundStyle(.white.opacity(0.8))
+                .monospacedDigit()
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+            .padding(20)
             .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .padding(.horizontal, 16)
 
             Text("Hourly yield")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: FontScale.section, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 22)
                 .padding(.bottom, 8)
 
-            HourlySolarChart(hours: model.solarHours)
+            HourlySolarChart(hours: model.solarHours, axisFontSize: FontScale.chartAxis)
                 .padding(.horizontal, 16)
                 .frame(maxHeight: .infinity)
 
             Spacer(minLength: 0)
         }
         .background(Color.black.ignoresSafeArea())
+        .frame(maxWidth: AdaptiveLayout.padDetailMaxWidth)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var solarHistoryPower: Double? {
+        model.snapshot.solarPvWatts ?? model.snapshot.solarWatts
     }
 
     private var batteryAmps: String {
@@ -417,6 +513,7 @@ struct SolarHistoryView: View {
 
 struct HourlySolarChart: View {
     var hours: [SolarHourBar]
+    var axisFontSize: CGFloat = 12
 
     var body: some View {
         let peak = max(hours.map(\.wattHours).max() ?? 0, 1)
@@ -447,7 +544,7 @@ struct HourlySolarChart: View {
                     Text(MetricFormat.hourLabel(last))
                 }
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: axisFontSize, weight: .medium))
             .foregroundStyle(.white.opacity(0.55))
             .monospacedDigit()
         }

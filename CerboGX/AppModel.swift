@@ -848,14 +848,33 @@ private extension BatteryActivity {
 }
 
 enum MetricFormat {
-    static func amps(_ value: Double?) -> String {
+    static func acLoadValue(_ value: Double?) -> Double? {
+        guard let value else { return nil }
+        return -abs(value)
+    }
+
+    static func amps(_ value: Double?, plusWhenPositive: Bool = false) -> String {
         guard let value else { return "—" }
-        return String(format: "%.1fA", abs(value))
+        let prefix = plusWhenPositive && value > 0 ? "+" : ""
+        return String(format: "%@%.1fA", prefix, value)
+    }
+
+    static func gridTile(_ amps: Double?) -> String {
+        guard let amps else { return "Disconnected" }
+        return String(format: "%.1fA", amps)
+    }
+
+    static func acLoadAmps(_ value: Double?) -> String {
+        amps(acLoadValue(value))
+    }
+
+    static func acLoadAmpsText(_ value: Double?) -> String {
+        ampsText(acLoadValue(value))
     }
 
     static func watts(_ value: Double?) -> String {
         guard let value else { return "—" }
-        return "\(Int(abs(value).rounded()))W"
+        return "\(Int(value.rounded()))w"
     }
 
     static func percent(_ value: Double?) -> String {
@@ -868,14 +887,16 @@ enum MetricFormat {
         return String(format: "%.2f V", value)
     }
 
-    static func ampsText(_ value: Double?) -> String {
+    static func ampsText(_ value: Double?, plusWhenPositive: Bool = false) -> String {
         guard let value else { return "— A" }
-        return String(format: "%.1f A", abs(value))
+        let prefix = plusWhenPositive && value > 0 ? "+" : ""
+        return String(format: "%@%.1f A", prefix, value)
     }
 
-    static func wattsText(_ value: Double?) -> String {
-        guard let value else { return "— W" }
-        return "\(Int(abs(value).rounded())) W"
+    static func wattsText(_ value: Double?, plusWhenPositive: Bool = false) -> String {
+        guard let value else { return "— w" }
+        let prefix = plusWhenPositive && value > 0 ? "+" : ""
+        return "\(prefix)\(Int(value.rounded())) w"
     }
 
     static func yield(_ kilowattHours: Double?) -> String {
@@ -894,7 +915,9 @@ enum MetricFormat {
 
     static func pvCurrent(watts: Double?, volts: Double?) -> String {
         guard let watts, watts > 1, let volts, volts > 1 else { return "-- A" }
-        return String(format: "%.1f A", watts / volts)
+        let current = watts / volts
+        let prefix = current > 0 ? "+" : ""
+        return String(format: "%@%.1f A", prefix, current)
     }
 
     static func mpptState(_ code: Int?) -> String {
